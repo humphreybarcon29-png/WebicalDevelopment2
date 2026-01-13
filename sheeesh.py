@@ -1,15 +1,24 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
+import os
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'BARCON')  
 
-app.secret_key = 'BARCON'
+# Use Railway MySQL vars or fallback (for local dev)
+DB_USER = os.environ.get('MYSQLUSER', 'root')
+DB_PASSWORD = os.environ.get('MYSQLPASSWORD', '')
+DB_HOST = os.environ.get('MYSQLHOST', 'localhost')
+DB_PORT = os.environ.get('MYSQLPORT', '3306')
+DB_NAME = os.environ.get('MYSQLDATABASE', 'chapter_renewal')
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:@localhost/chapter_renewal'
+app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-with app.app_context():
+
+@app.before_first_request
+def create_tables():
     db.create_all()
 
 class User(db.Model):
@@ -25,7 +34,7 @@ class User(db.Model):
 
 @app.route('/')
 def home():
-    return render_template('renewal.html')
+    return render_template('register.html')  
 
 @app.route('/renewal', methods=['POST'])
 def renewal():
@@ -50,11 +59,15 @@ def renewal():
         db.session.add(new_user)
         db.session.commit()
         flash('Renewal successful!', 'success')
-        return redirect(url_for('success'))
+        return redirect(url_for('home'))  
     except Exception as e:
         db.session.rollback()
         flash(f'Error: {str(e)}', 'error')
         return redirect(url_for('home'))
 
+@app.route('/success')
+def success():
+    return '<h1>Success!</h1>'  
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
